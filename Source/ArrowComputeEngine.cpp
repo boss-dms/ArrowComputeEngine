@@ -13,6 +13,7 @@
 #include <memory>
 #include <random>
 #include <unordered_map>
+#include <set>
 using namespace boss::utilities::experimental;
 using namespace arrow;
 using namespace acero;
@@ -92,6 +93,16 @@ public:
                ? dynamic_cast<arrow::acero::TableSourceNodeOptions*>(d.options.get())->table
                : (*DeclarationToTable(d, false));
   };
+
+  void collectGarbage() {
+    auto keysToDelete = std::set<size_t>();
+    for(auto& [key, value] : intermediates)
+      keysToDelete.insert(key);
+    for(auto& [name, key] : names)
+      keysToDelete.erase(key);
+    for(auto& key : keysToDelete)
+      intermediates.erase(key);
+  }
 } intermediates;
 
 static boss::Expression evaluate(boss::Expression&& e) {
@@ -236,8 +247,8 @@ static boss::Expression evaluate(boss::Expression&& e) {
 };
 
 extern "C" BOSSExpression* evaluate(BOSSExpression* e) {
-  return new BOSSExpression{.delegate =
-                                intermediates.convertResult(evaluate(std::move(e->delegate)))
-
-  };
+  auto result =
+      new BOSSExpression{.delegate = intermediates.convertResult(evaluate(std::move(e->delegate)))};
+  intermediates.collectGarbage();
+  return result;
 };
